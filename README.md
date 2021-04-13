@@ -65,4 +65,4 @@ Sofar the internals are structured in four plugins:
 ## PollPlugin
 
 - kickoff the poll-loop for mio <-> os interaction
-- has to be called last ond just once!
+- has to be called last and just once!
