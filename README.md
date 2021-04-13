@@ -38,6 +38,16 @@ And like this to use:
     }
 ```
 
+Test the example by running
+
+`cargo run --example ping_pong 127.0.0.1:8000 127.0.0.1:8001`
+
+and
+
+`cargo run --example ping_pong 127.0.0.1:8001 127.0.0.1:8000`
+
+in separate terminals.
+
 # Obvious caveats
 
 BUFFER_SIZE for deserialization is hardcoded to a small value, adjust to your needs when experimenting.
