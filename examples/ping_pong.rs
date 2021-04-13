@@ -3,7 +3,7 @@ use bevy::{
     core::CorePlugin,
     prelude::{App, EventReader, EventWriter, IntoSystem, Res, ResMut, Time, Timer},
 };
-use bevy_prototype_networked_event::event_plugin::{Dispatch, Receive};
+use bevy_prototype_networked_event::{Dispatch, NetworkedEventPlugins, Receive};
 use std::env;
 use std::time::SystemTime;
 
@@ -13,17 +13,10 @@ fn main() {
     App::build()
         .add_plugin(ScheduleRunnerPlugin::default())
         .add_plugin(CorePlugin::default())
-        .add_plugin(bevy_prototype_networked_event::core_plugin::CorePlugin::default())
-        .add_plugin(
-            bevy_prototype_networked_event::socket_plugin::SocketPlugin::new(
-                args[1].clone(),
-                vec![args[2].clone()],
-            ),
-        )
-        .add_plugin(bevy_prototype_networked_event::event_plugin::EventPlugin::<
-            String,
-        >::default())
-        .add_plugin(bevy_prototype_networked_event::poll_plugin::PollPlugin::default())
+        .add_plugins(NetworkedEventPlugins::<String>::new(
+            args[1].clone(),
+            vec![args[2].clone()],
+        ))
         .add_system(spam_event_system.system())
         .add_system(print_event_system.system())
         .insert_resource(MyTimer(Timer::from_seconds(2.0, true)))
