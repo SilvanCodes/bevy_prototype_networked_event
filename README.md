@@ -13,8 +13,8 @@ It looks like this to setup:
         // ...
         // String is our type to be transmitted
         .add_plugins(NetworkedEventPlugins::<String>::new(
-            "127.0.0.0:8000", // ip to listen on
-            vec!["127.0.0.0:8001"], // ips to send to
+            String::from("127.0.0.0:8000"),       // ip to listen on
+            vec![String::from("127.0.0.0:8001")], // ips to send to
         ))
         // ...
         .run();
@@ -26,7 +26,7 @@ And like this to use:
     fn dispatch_over_network_system(
         mut my_event_dispatcher: EventWriter<Dispatch<String>>,
     ) {
-        my_events.send(Dispatch("Hello!")));
+        my_events.send(Dispatch(String::from("Hello!")));
     }
 
     fn receive_from_network_system(
