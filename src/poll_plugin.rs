@@ -45,13 +45,9 @@ impl Plugin for PollPlugin {
                 for event in &events {
                     if let Some(status) = token_status_map_arc_clone.0.get(&event.token()) {
                         // check if udp is readable
-                        if event.is_readable() {
-                            status.set_readable(true);
-                        }
+                        status.set_readable(event.is_readable());
                         // check if udp is writable
-                        if event.is_writable() {
-                            status.set_writable(true);
-                        }
+                        status.set_writable(event.is_writable());
                     }
                 }
             }

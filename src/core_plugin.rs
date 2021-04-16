@@ -1,17 +1,24 @@
 use std::{
+    marker::PhantomData,
     ops::RangeFrom,
     sync::atomic::{AtomicBool, Ordering},
 };
 
 use bevy::{
+    ecs::component::Component,
     prelude::{AppBuilder, CoreStage, Plugin, StageLabel, SystemStage},
     utils::HashMap,
 };
+use crossbeam_channel::{Receiver, Sender};
+use downcast_rs::{impl_downcast, Downcast};
 use mio::{Poll, Token};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
 pub enum NetworkStage {
     Receive,
+    PostReceive,
+    PreDispatch,
     Dispatch,
 }
 
@@ -57,6 +64,55 @@ impl TokenStatus {
 #[derive(Debug, Default)]
 pub struct TokenStatusMap(pub HashMap<Token, TokenStatus>);
 
+#[typetag::serde]
+pub trait Networked: Component + Downcast + std::fmt::Debug {}
+impl_downcast!(Networked);
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct EventId {
+    t: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct NetworkedEvent {
+    pub id: EventId,
+    pub data: Box<dyn Networked>,
+}
+
+#[derive(Debug, Default)]
+pub struct ReceiverMap(pub HashMap<EventId, Sender<NetworkedEvent>>);
+
+pub struct ReceiverQueue<T> {
+    marker: PhantomData<T>,
+    pub queue: Receiver<NetworkedEvent>,
+}
+
+impl<T> ReceiverQueue<T> {
+    pub fn new(queue: Receiver<NetworkedEvent>) -> Self {
+        Self {
+            marker: PhantomData,
+            queue,
+        }
+    }
+}
+
+pub struct Dispatcher<S> {
+    marker: PhantomData<S>,
+    pub sender: Sender<NetworkedEvent>,
+}
+
+impl<S> Dispatcher<S> {
+    pub fn new(sender: Sender<NetworkedEvent>) -> Self {
+        Self {
+            marker: PhantomData,
+            sender,
+        }
+    }
+    pub fn dispatch(&self, msg: NetworkedEvent) {
+        self.sender.try_send(msg).expect("could not dispatch")
+    }
+}
+
 pub struct CorePluginState {
     pub token_gen: RangeFrom<usize>,
     pub poll: Poll,
@@ -78,13 +134,24 @@ impl Plugin for CorePlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<CorePluginState>()
             .init_resource::<TokenStatusMap>()
+            .init_resource::<ReceiverMap>()
             .add_stage_before(
                 CoreStage::Update,
+                NetworkStage::PostReceive,
+                SystemStage::parallel(),
+            )
+            .add_stage_before(
+                NetworkStage::PostReceive,
                 NetworkStage::Receive,
                 SystemStage::parallel(),
             )
             .add_stage_after(
                 CoreStage::Update,
+                NetworkStage::PreDispatch,
+                SystemStage::parallel(),
+            )
+            .add_stage_after(
+                NetworkStage::PreDispatch,
                 NetworkStage::Dispatch,
                 SystemStage::parallel(),
             );

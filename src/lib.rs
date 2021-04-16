@@ -1,14 +1,16 @@
 use std::marker::PhantomData;
 
-use bevy::{app::PluginGroupBuilder, ecs::component::Component, prelude::PluginGroup};
-use serde::{de::DeserializeOwned, Serialize};
+use bevy::{
+    app::PluginGroupBuilder,
+    prelude::{AppBuilder, PluginGroup},
+};
 
 pub mod core_plugin;
 pub mod event_plugin;
 pub mod poll_plugin;
 pub mod socket_plugin;
 
-pub use core_plugin::CorePlugin;
+pub use core_plugin::{CorePlugin, Networked};
 pub use event_plugin::{Dispatch, EventPlugin, Receive};
 pub use poll_plugin::PollPlugin;
 pub use socket_plugin::SocketPlugin;
@@ -19,9 +21,43 @@ pub struct NetworkedEventPlugins<T> {
     peer_addrs: Vec<String>,
 }
 
-impl<T: Default + Component + Serialize + DeserializeOwned + std::fmt::Debug>
-    NetworkedEventPlugins<T>
-{
+pub trait SetupNetworkedEvent {
+    fn add_networked_socket<S, T: Into<String>>(
+        &mut self,
+        addr: T,
+        peer_addrs: Vec<T>,
+    ) -> &mut Self;
+    fn add_networked_event<T: Networked>(&mut self) -> &mut Self;
+    fn add_networked_core(&mut self) -> &mut Self;
+    fn add_networked_loop(&mut self) -> &mut Self;
+}
+
+impl SetupNetworkedEvent for AppBuilder {
+    fn add_networked_event<T: Networked>(&mut self) -> &mut Self {
+        self.add_plugin(EventPlugin::<T>::default())
+    }
+
+    fn add_networked_socket<S, T: Into<String>>(
+        &mut self,
+        addr: T,
+        peer_addrs: Vec<T>,
+    ) -> &mut Self {
+        self.add_plugin(SocketPlugin::new(
+            addr.into(),
+            peer_addrs.into_iter().map(|t| t.into()).collect(),
+        ))
+    }
+
+    fn add_networked_core(&mut self) -> &mut Self {
+        self.add_plugin(CorePlugin::default())
+    }
+
+    fn add_networked_loop(&mut self) -> &mut Self {
+        self.add_plugin(PollPlugin::default())
+    }
+}
+
+impl<T: Networked> NetworkedEventPlugins<T> {
     pub fn new(addr: String, peer_addrs: Vec<String>) -> Self {
         Self {
             marker: PhantomData,
@@ -31,9 +67,7 @@ impl<T: Default + Component + Serialize + DeserializeOwned + std::fmt::Debug>
     }
 }
 
-impl<T: Default + Component + Serialize + DeserializeOwned + std::fmt::Debug> PluginGroup
-    for NetworkedEventPlugins<T>
-{
+impl<T: Networked> PluginGroup for NetworkedEventPlugins<T> {
     fn build(&mut self, group: &mut PluginGroupBuilder) {
         group
             .add(CorePlugin::default())

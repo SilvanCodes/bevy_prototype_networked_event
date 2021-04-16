@@ -3,7 +3,10 @@ use bevy::{
     core::CorePlugin,
     prelude::{App, EventReader, EventWriter, IntoSystem, Res, ResMut, Time, Timer},
 };
-use bevy_prototype_networked_event::{Dispatch, NetworkedEventPlugins, Receive};
+use bevy_prototype_networked_event::{
+    Dispatch, Networked, NetworkedEventPlugins, Receive, SetupNetworkedEvent,
+};
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::time::SystemTime;
 
@@ -13,10 +16,15 @@ fn main() {
     App::build()
         .add_plugin(ScheduleRunnerPlugin::default())
         .add_plugin(CorePlugin::default())
-        .add_plugins(NetworkedEventPlugins::<String>::new(
+        .add_networked_core()
+        .add_networked_socket::<(), _>(args[1].clone(), vec![args[2].clone()])
+        .add_networked_event::<Ping>()
+        .add_networked_event::<Pong>()
+        .add_networked_loop()
+        /* .add_plugins(NetworkedEventPlugins::<MyMessage>::new(
             args[1].clone(),
             vec![args[2].clone()],
-        ))
+        )) */
         .add_system(spam_event_system.system())
         .add_system(print_event_system.system())
         .insert_resource(MyTimer(Timer::from_seconds(2.0, true)))
@@ -25,29 +33,36 @@ fn main() {
 
 struct MyTimer(Timer);
 
+#[derive(Debug, Deserialize, Serialize)]
+struct Ping;
+
+#[typetag::serde]
+impl Networked for Ping {}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Pong;
+
+#[typetag::serde]
+impl Networked for Pong {}
+
 fn spam_event_system(
     time: Res<Time>,
     mut timer: ResMut<MyTimer>,
-    mut my_events: EventWriter<Dispatch<String>>,
+    mut ping_dispatcher: EventWriter<Dispatch<Ping>>,
 ) {
-    // update our timer with the time elapsed since the last update
-
-    let secs = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
     // check to see if the timer has finished. if it has, print our message
     if timer.0.tick(time.delta()).finished() {
-        // dbg!("timer finsihed, sending event");
-        my_events.send(Dispatch(format!("{}", secs)));
+        dbg!("sending ping");
+        ping_dispatcher.send(Dispatch(Ping));
     }
 }
 
-fn print_event_system(mut my_event_reader: EventReader<Receive<String>>) {
-    for event in my_event_reader.iter()
-    /* .filter(|e| e.is_remote()) */
-    {
-        println!("got event: {:?}", event.0);
+fn print_event_system(
+    mut ping_receiver: EventReader<Receive<Ping>>,
+    mut pong_dispatcher: EventWriter<Dispatch<Pong>>,
+) {
+    for _ in ping_receiver.iter() {
+        dbg!("got ping, sending pong");
+        pong_dispatcher.send(Dispatch(Pong));
     }
 }

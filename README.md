@@ -76,3 +76,12 @@ Sofar the internals are structured in four plugins:
 
 - kickoff the poll-loop for mio <-> os interaction
 - has to be called last and just once!
+
+use HashMap<TypeId, Sender> to receive and deserialize
+
+- added by event system setup
+
+use Dispatcher<T>(Sender) to send and serialize
+
+- added by socket system setup
+- add socket receiving and sending systems
