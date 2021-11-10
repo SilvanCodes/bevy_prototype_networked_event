@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::time::SystemTime;
 
+struct MySocketIdentifier;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -17,9 +19,9 @@ fn main() {
         .add_plugin(ScheduleRunnerPlugin::default())
         .add_plugin(CorePlugin::default())
         .add_networked_core()
-        .add_networked_socket::<(), _>(args[1].clone(), vec![args[2].clone()])
-        .add_networked_event::<Ping>()
-        .add_networked_event::<Pong>()
+        .add_networked_socket::<()>(args[1].clone().to_string(), vec![args[2].clone().to_string()])
+        .add_networked_event::<Ping, ()>()
+        .add_networked_event::<Pong, ()>()
         .add_networked_loop()
         /* .add_plugins(NetworkedEventPlugins::<MyMessage>::new(
             args[1].clone(),
@@ -59,10 +61,14 @@ fn spam_event_system(
 
 fn print_event_system(
     mut ping_receiver: EventReader<Receive<Ping>>,
+    mut pong_receiver: EventReader<Receive<Pong>>,
     mut pong_dispatcher: EventWriter<Dispatch<Pong>>,
 ) {
     for _ in ping_receiver.iter() {
         dbg!("got ping, sending pong");
         pong_dispatcher.send(Dispatch(Pong));
+    }
+    for _ in pong_receiver.iter() {
+        dbg!("got pong!");
     }
 }

@@ -15,22 +15,25 @@ use crate::core_plugin::{
 
 const BUFFER_SIZE: usize = 64;
 
+pub trait Socket: Component {}
+impl<T: Component> Socket for T {}
+
 #[derive(Debug)]
-pub struct SocketHandle<T = ()> {
-    marker: PhantomData<T>,
+pub struct SocketHandle<S> {
+    marker: PhantomData<S>,
     pub token: Token,
     pub socket: UdpSocket,
     pub queue: Receiver<NetworkedEvent>,
     pub peer_addrs: HashSet<SocketAddr>,
 }
 
-pub struct SocketPlugin<T = ()> {
-    marker: PhantomData<T>,
+pub struct SocketPlugin<S> {
+    marker: PhantomData<S>,
     addr: String,
     peer_addrs: Vec<String>,
 }
 
-impl SocketPlugin {
+impl<S> SocketPlugin<S> {
     pub fn new(addr: String, peer_addrs: Vec<String>) -> Self {
         Self {
             marker: PhantomData,
@@ -40,8 +43,8 @@ impl SocketPlugin {
     }
 }
 
-impl<T: Component> SocketPlugin<T> {
-    fn dispatch_system(socket_handle: Res<SocketHandle<T>>, status_arc: Res<Arc<TokenStatusMap>>) {
+impl<S: Socket> SocketPlugin<S> {
+    fn dispatch_system(socket_handle: Res<SocketHandle<S>>, status_arc: Res<Arc<TokenStatusMap>>) {
         let status = status_arc
             .0
             .get(&socket_handle.token)
@@ -70,7 +73,7 @@ impl<T: Component> SocketPlugin<T> {
 
     fn receive_system(
         event_receivers: Res<ReceiverMap>,
-        socket_handle: Res<SocketHandle<T>>,
+        socket_handle: Res<SocketHandle<S>>,
         status_arc: Res<Arc<TokenStatusMap>>,
     ) {
         let status = status_arc
@@ -105,7 +108,7 @@ impl<T: Component> SocketPlugin<T> {
     }
 }
 
-impl<T: Component> Plugin for SocketPlugin<T> {
+impl<S: Socket> Plugin for SocketPlugin<S> {
     fn build(&self, app: &mut AppBuilder) {
         let mut socket =
             UdpSocket::bind(self.addr.parse().expect("could not parse socket address"))
@@ -134,7 +137,7 @@ impl<T: Component> Plugin for SocketPlugin<T> {
         let (queue_sender, queue) = unbounded();
 
         // create socket
-        let socket_handle: SocketHandle<T> = SocketHandle {
+        let socket_handle: SocketHandle<S> = SocketHandle {
             marker: PhantomData,
             token,
             socket,
@@ -147,7 +150,7 @@ impl<T: Component> Plugin for SocketPlugin<T> {
         };
 
         app.insert_resource(socket_handle)
-            .insert_resource(Dispatcher::<T>::new(queue_sender))
+            .insert_resource(Dispatcher::<S>::new(queue_sender))
             .add_system_to_stage(NetworkStage::Receive, Self::receive_system.system())
             .add_system_to_stage(NetworkStage::Dispatch, Self::dispatch_system.system());
     }

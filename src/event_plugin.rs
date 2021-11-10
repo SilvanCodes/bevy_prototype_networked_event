@@ -2,14 +2,13 @@ use std::{any::TypeId, marker::PhantomData};
 
 use bevy::{
     app::Events,
-    ecs::component::Component,
     prelude::{EventWriter, IntoSystem, Plugin, Res, ResMut},
 };
 use crossbeam_channel::unbounded;
 
-use crate::core_plugin::{
+use crate::{core_plugin::{
     Dispatcher, EventId, NetworkStage, Networked, NetworkedEvent, ReceiverMap, ReceiverQueue,
-};
+}, socket_plugin::Socket};
 
 #[derive(Debug)]
 pub struct Dispatch<T: Networked>(pub T);
@@ -18,7 +17,7 @@ pub struct Dispatch<T: Networked>(pub T);
 pub struct Receive<T: Networked>(pub T);
 
 #[derive(Debug)]
-pub struct EventPlugin<T, S = ()>(PhantomData<T>, PhantomData<S>);
+pub struct EventPlugin<T, S>(PhantomData<T>, PhantomData<S>);
 
 impl<T, S> Default for EventPlugin<T, S> {
     fn default() -> Self {
@@ -26,7 +25,7 @@ impl<T, S> Default for EventPlugin<T, S> {
     }
 }
 
-impl<T: Component + Networked, S: Component> EventPlugin<T, S> {
+impl<T: Networked, S: Socket> EventPlugin<T, S> {
     fn receive_system(
         mut event_queue: EventWriter<Receive<T>>,
         receiver_queue: Res<ReceiverQueue<T>>,
@@ -55,7 +54,7 @@ impl<T: Component + Networked, S: Component> EventPlugin<T, S> {
     }
 }
 
-impl<T: Networked> Plugin for EventPlugin<T> {
+impl<T: Networked, S: Socket> Plugin for EventPlugin<T, S> {
     fn build(&self, app: &mut bevy::prelude::AppBuilder) {
         let type_id = TypeId::of::<T>();
 
